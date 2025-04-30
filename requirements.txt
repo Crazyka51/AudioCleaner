@@ -7,3 +7,4 @@ soundfile
 streamlit
 torch
 torchaudio
+ffmpeg-python
