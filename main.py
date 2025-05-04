@@ -10,13 +10,17 @@ import librosa
 import torch
 from torchaudio import AudioMetaData
 import tempfile
+import os
+import subprocess
 
 st.title("Probably(?) a better Adobe Enhance Speech")
 st.subheader("Made possible thanks to DeepFilterNet")
 
-uploaded_file = st.file_uploader("Upload your audio file here", type=["mp3", "m4a", "wav", "flac", "ogg"])
+uploaded_file = st.file_uploader("Upload your audio file here", type=["mp3", "m4a", "wav", "flac", "ogg", "mov"])
 
 if uploaded_file is not None:
+    is_video = uploaded_file.name.lower().endswith('.mov')
+    
     # Convert to WAV format
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio_file:
         audio = pydub.AudioSegment.from_file(io.BytesIO(uploaded_file.getvalue()))
@@ -34,6 +38,51 @@ if uploaded_file is not None:
         enhanced_numpy = enhanced.cpu().numpy()
         st.write('Cleaned audio')
         st.audio(enhanced_numpy, format='audio/wav', sample_rate=sample_rate)
+
+        # Save enhanced audio to temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as enhanced_audio_file:
+            sf.write(enhanced_audio_file.name, enhanced_numpy.T, sample_rate)
+            enhanced_audio_path = enhanced_audio_file.name
+
+        # If it's a video file, combine with original video
+        if is_video:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mov") as temp_video_file:
+                temp_video_file.write(uploaded_file.getvalue())
+                temp_video_path = temp_video_file.name
+
+            # Create output video with cleaned audio
+            output_video_path = "cleaned_output.mp4"
+            subprocess.run([
+                'ffmpeg', '-i', temp_video_path, '-i', enhanced_audio_path,
+                '-c:v', 'copy', '-c:a', 'aac', '-map', '0:v:0', '-map', '1:a:0',
+                output_video_path
+            ])
+
+            # Provide download button for the video
+            with open(output_video_path, 'rb') as f:
+                st.download_button(
+                    label="Download Cleaned Video",
+                    data=f,
+                    file_name="cleaned_output.mp4",
+                    mime="video/mp4"
+                )
+            
+            # Clean up temporary files
+            os.unlink(temp_video_path)
+            os.unlink(output_video_path)
+        else:
+            # Provide download button for audio only
+            with open(enhanced_audio_path, 'rb') as f:
+                st.download_button(
+                    label="Download Cleaned Audio",
+                    data=f,
+                    file_name="cleaned_audio.wav",
+                    mime="audio/wav"
+                )
+
+        # Clean up temporary files
+        os.unlink(enhanced_audio_path)
+        os.unlink(temp_audio_file.name)
 
         # Plot spectrograms
         fig, axs = plt.subplots(1, 2, figsize=(12, 6))
