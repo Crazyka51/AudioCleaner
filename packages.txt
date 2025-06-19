@@ -1,1 +1,8 @@
 ffmpeg
+curl
+build-essential
+pkg-config
+libssl-dev
+libffi-dev
+rustc
+cargo
